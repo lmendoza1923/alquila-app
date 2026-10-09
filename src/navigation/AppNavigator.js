@@ -10,6 +10,7 @@ import ReservasScreen from '../screens/ReservasScreen';
 import CrearReservaScreen from '../screens/CrearReservaScreen';
 import ClientesScreen from '../screens/ClientesScreen';
 import MobiliarioScreen from '../screens/MobiliarioScreen';
+import SucursalesScreen from '../screens/SucursalesScreen';
 import ReportesScreen from '../screens/ReportesScreen';
 
 const Stack = createNativeStackNavigator();
@@ -57,6 +58,14 @@ function MainTabs() {
         options={{
           title: 'Inventario',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🪑</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="Sucursales"
+        component={SucursalesScreen}
+        options={{
+          title: 'Sucursales',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🏢</Text>,
         }}
       />
       <Tab.Screen
