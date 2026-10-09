@@ -188,13 +188,30 @@ export default function SucursalesScreen({ navigation }) {
     if (!sucursalSeleccionada) return;
     setGuardandoInventario(true);
     try {
-      const items = mobiliarioSede.map((m) => ({
-        mueble_id: m.mueble_id,
-        cantidad: Math.max(0, parseInt(m.cantidad) || 0),
-      }));
+      const sucursalActualId = sucursalSeleccionada.id;
+      const otraSucursal = sucursales.find((s) => s.id !== sucursalActualId);
 
-      await api.put(`/sucursales/${sucursalSeleccionada.id}/inventario`, { items });
-      Alert.alert('Éxito', `Cantidades actualizadas para ${sucursalSeleccionada.nombre}`);
+      const cambios = [];
+      mobiliarioSede.forEach((m) => {
+        const cant = Math.max(0, parseInt(m.cantidad) || 0);
+        cambios.push({
+          sucursal_id: sucursalActualId,
+          mueble_id: m.mueble_id,
+          cantidad: cant,
+        });
+        if (otraSucursal && sucursales.length === 2) {
+          const stockTot = parseInt(m.stock_total) || 0;
+          const restante = Math.max(0, stockTot - cant);
+          cambios.push({
+            sucursal_id: otraSucursal.id,
+            mueble_id: m.mueble_id,
+            cantidad: restante,
+          });
+        }
+      });
+
+      await api.post('/sucursales/distribucion/guardar', { cambios });
+      Alert.alert('Éxito', `Cantidades sincronizadas y guardadas con éxito`);
       setModalInventarioVisible(false);
       cargarDatos();
     } catch (err) {
@@ -290,15 +307,27 @@ export default function SucursalesScreen({ navigation }) {
     );
   };
 
-  // ── Planilla General: Manejo de cambios y guardado ──────────────────────
+  // ── Planilla General: Manejo de cambios (con auto-balance a la otra sucursal) ──
   const handleCambioPlanilla = (muebleId, sucursalId, delta) => {
+    const mueble = mueblesPlanilla.find((m) => m.id === muebleId);
+    const stockTotal = mueble ? (parseInt(mueble.stock_total) || 0) : 0;
+    const otraSucursal = sucursales.find((s) => s.id !== sucursalId);
+
     const key = `${muebleId}_${sucursalId}`;
     const actual = planillaValores[key] !== undefined ? planillaValores[key] : 0;
     const nuevo = Math.max(0, actual + delta);
-    setPlanillaValores((prev) => ({
-      ...prev,
-      [key]: nuevo,
-    }));
+
+    setPlanillaValores((prev) => {
+      const updated = {
+        ...prev,
+        [key]: nuevo,
+      };
+      if (otraSucursal && sucursales.length === 2) {
+        const restante = Math.max(0, stockTotal - nuevo);
+        updated[`${muebleId}_${otraSucursal.id}`] = restante;
+      }
+      return updated;
+    });
   };
 
   const hayCambiosPlanilla = useMemo(() => {
@@ -497,6 +526,11 @@ export default function SucursalesScreen({ navigation }) {
       ) : (
         /* ── PLANILLA GENERAL DE MOBILIARIOS ── */
         <View style={{ flex: 1 }}>
+          <View style={styles.bannerInformativo}>
+            <Text style={styles.bannerInformativoTexto}>
+              ⚖️ Balanceo visual: Al ajustar una sucursal, la diferencia del Stock Total se asigna a la otra.
+            </Text>
+          </View>
           <FlatList
             data={mueblesPlanillaFiltrados}
             keyExtractor={(item) => String(item.id)}
@@ -511,7 +545,12 @@ export default function SucursalesScreen({ navigation }) {
             renderItem={({ item }) => (
               <View style={styles.tarjetaPlanilla}>
                 <View style={styles.cabeceraMueblePlanilla}>
-                  <Text style={styles.nombreMueblePlanilla}>{item.nombre}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.nombreMueblePlanilla}>{item.nombre}</Text>
+                    <View style={styles.badgeStockRef}>
+                      <Text style={styles.badgeStockRefTexto}>Stock: {item.stock_total || 0}</Text>
+                    </View>
+                  </View>
                   {item.categoria_nombre ? (
                     <Text style={styles.categoriaMueblePlanilla}>{item.categoria_nombre}</Text>
                   ) : null}
@@ -629,12 +668,26 @@ export default function SucursalesScreen({ navigation }) {
               }
               renderItem={({ item }) => {
                 const cant = parseInt(item.cantidad) || 0;
+                const stockTot = parseInt(item.stock_total) || 0;
+                const restante = Math.max(0, stockTot - cant);
+                const otraSuc = sucursales.find((s) => s.id !== sucursalSeleccionada?.id);
+
                 return (
                   <View style={[styles.filaItemModal, cant > 0 && styles.filaItemModalActivo]}>
                     <View style={{ flex: 1, paddingRight: 8 }}>
                       <Text style={styles.nombreItemModal}>{item.nombre}</Text>
-                      {item.categoria_nombre ? (
-                        <Text style={styles.categoriaItemModal}>{item.categoria_nombre}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        {item.categoria_nombre ? (
+                          <Text style={styles.categoriaItemModal}>{item.categoria_nombre} •</Text>
+                        ) : null}
+                        <View style={styles.badgeStockRef}>
+                          <Text style={styles.badgeStockRefTexto}>Stock Ref: {stockTot}</Text>
+                        </View>
+                      </View>
+                      {otraSuc && sucursales.length === 2 ? (
+                        <Text style={styles.textoRestanteOtra}>
+                          ➡️ Quedará en {otraSuc.nombre}: {restante} piezas
+                        </Text>
                       ) : null}
                     </View>
 
@@ -1288,5 +1341,36 @@ const styles = StyleSheet.create({
   tituloVacio: {
     fontSize: 14,
     color: '#64748b',
+  },
+  badgeStockRef: {
+    backgroundColor: '#f1f5f9',
+    borderColor: '#cbd5e1',
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  badgeStockRefTexto: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  textoRestanteOtra: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563eb',
+    marginTop: 3,
+  },
+  bannerInformativo: {
+    backgroundColor: '#eff6ff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#bfdbfe',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bannerInformativoTexto: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1d4ed8',
   },
 });
