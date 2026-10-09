@@ -186,12 +186,12 @@ export default function CrearReservaScreen({ route, navigation }) {
 
       <View style={styles.cardForm}>
         <View style={styles.campo}>
-          <Text style={styles.label}>Alias / Motivo del Evento</Text>
+          <Text style={styles.label}>Motivo del Evento</Text>
           <TextInput
             style={styles.input}
             value={form.alias}
             onChangeText={(t) => setForm((f) => ({ ...f, alias: t }))}
-            placeholder="Ej: Cumpleaños infantil / Fiesta María"
+            placeholder="Ej: Boda, 15 años, Baby Shower, Cumpleaños, Revelación"
           />
         </View>
 
@@ -207,7 +207,7 @@ export default function CrearReservaScreen({ route, navigation }) {
 
         <View style={styles.row}>
           <View style={[styles.campo, { flex: 1, marginRight: 8 }]}>
-            <Text style={styles.label}>Cédula (Opcional)</Text>
+            <Text style={styles.label}>Cédula *</Text>
             <TextInput
               style={styles.input}
               value={form.cedula}
